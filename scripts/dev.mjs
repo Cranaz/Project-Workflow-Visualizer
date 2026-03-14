@@ -1,9 +1,9 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 
 /**
  * Dev startup script for Project Workflow Visualizer.
- * Checks Ollama status, ensures primary model availability, then starts Next.js.
- * Compatible with Windows (PowerShell) — uses only Node.js built-in modules.
+ * Checks Ollama status, ensures model availability, then starts Next.js.
+ * Compatible with Windows (PowerShell) - uses only Node.js built-in modules.
  */
 
 import { spawn } from 'child_process';
@@ -17,6 +17,8 @@ const DEFAULT_MODELS = [
 ];
 const RAW_MODELS = process.env.OLLAMA_MODELS;
 const PRIMARY_OVERRIDE = process.env.OLLAMA_MODEL;
+const AUTO_START = (process.env.OLLAMA_AUTO_START ?? 'true') === 'true';
+const AUTO_PULL = (process.env.OLLAMA_AUTO_PULL ?? 'true') === 'true';
 const BASE_MODELS = RAW_MODELS
     ? RAW_MODELS.split(',').map((entry) => entry.trim()).filter(Boolean)
     : PRIMARY_OVERRIDE
@@ -31,10 +33,29 @@ function log(icon, message) {
 
 function banner() {
     console.log('');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('------------------------------------');
     console.log('  Project Workflow Visualizer');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('------------------------------------');
     console.log('');
+}
+
+function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isLocalHost(host) {
+    try {
+        const normalized = host.includes('://') ? host : `http://${host}`;
+        const url = new URL(normalized);
+        return (
+            url.hostname === 'localhost' ||
+            url.hostname === '127.0.0.1' ||
+            url.hostname === '0.0.0.0' ||
+            url.hostname === '::1'
+        );
+    } catch {
+        return false;
+    }
 }
 
 async function checkOllama() {
@@ -54,6 +75,16 @@ async function checkOllama() {
     }
 }
 
+async function waitForOllamaReady(timeoutMs = 15000) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        const status = await checkOllama();
+        if (status.running) return status;
+        await delay(500);
+    }
+    return checkOllama();
+}
+
 function matchesModel(name, expected) {
     if (!expected) return false;
     if (name === expected) return true;
@@ -63,19 +94,19 @@ function matchesModel(name, expected) {
     return false;
 }
 
-async function pullModel() {
+async function pullModel(model) {
     return new Promise((resolve, reject) => {
-        log('⬇️ ', `Model ${PRIMARY_MODEL} not found — pulling now...`);
-        log('  ', '(This may take a while on first run)');
+        log('[pull]', `Model ${model} not found - pulling now...`);
+        log('     ', '(This may take a while on first run)');
 
-        const child = spawn('ollama', ['pull', PRIMARY_MODEL], {
+        const child = spawn('ollama', ['pull', model], {
             stdio: 'inherit',
             shell: true,
         });
 
         child.on('close', (code) => {
             if (code === 0) {
-                log('✅', 'Model pulled successfully');
+                log('[ok] ', 'Model pulled successfully');
                 resolve(undefined);
             } else {
                 reject(new Error(`ollama pull exited with code ${code}`));
@@ -88,9 +119,24 @@ async function pullModel() {
     });
 }
 
+async function startOllamaServe() {
+    return new Promise((resolve, reject) => {
+        const child = spawn('ollama', ['serve'], {
+            stdio: 'ignore',
+            shell: true,
+            detached: true,
+            windowsHide: true,
+        });
+
+        child.on('error', (err) => reject(err));
+        child.unref();
+        resolve(undefined);
+    });
+}
+
 function startNextDev() {
-    log('🌐', 'Starting Next.js dev server...');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    log('[dev]', 'Starting Next.js dev server...');
+    console.log('------------------------------------');
     console.log('');
 
     const child = spawn('npx', ['next', 'dev', '--webpack'], {
@@ -122,27 +168,62 @@ function startNextDev() {
 async function main() {
     banner();
 
-    const ollamaStatus = await checkOllama();
+    const isLocal = isLocalHost(OLLAMA_HOST);
+    let ollamaStatus = await checkOllama();
+
+    if (!ollamaStatus.running && AUTO_START && isLocal) {
+        log('[ai] ', `Ollama not running at ${OLLAMA_HOST} - starting...`);
+        try {
+            await startOllamaServe();
+            ollamaStatus = await waitForOllamaReady();
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            log('[warn]', `Failed to start Ollama: ${message}`);
+        }
+    }
 
     if (ollamaStatus.running) {
-        log('✅', `Ollama is running at ${OLLAMA_HOST}`);
+        log('[ok] ', `Ollama is running at ${OLLAMA_HOST}`);
 
-        const hasModel = ollamaStatus.models.some((m) => matchesModel(m, PRIMARY_MODEL));
+        const available = MODEL_LIST.find((model) =>
+            ollamaStatus.models.some((name) => matchesModel(name, model))
+        );
 
-        if (hasModel) {
-            log('✅', `Model ${PRIMARY_MODEL} is available`);
-        } else {
-            try {
-                await pullModel();
-            } catch (err) {
-                log('⚠️ ', `Failed to pull model: ${err.message}`);
-                log('  ', 'AI enrichment will be unavailable — structural analysis only');
+        if (available) {
+            log('[ok] ', `Model ${available} is available`);
+            process.env.OLLAMA_MODEL = available;
+        } else if (AUTO_PULL && isLocal) {
+            let selected = null;
+            for (const model of MODEL_LIST) {
+                try {
+                    await pullModel(model);
+                    const refreshed = await checkOllama();
+                    if (refreshed.running) {
+                        const match = refreshed.models.some((name) => matchesModel(name, model));
+                        if (match) {
+                            selected = model;
+                            ollamaStatus = refreshed;
+                            break;
+                        }
+                    }
+                } catch (err) {
+                    const message = err instanceof Error ? err.message : String(err);
+                    log('[warn]', `Failed to pull ${model}: ${message}`);
+                }
             }
+
+            if (selected) {
+                log('[ok] ', `Model ${selected} is available`);
+                process.env.OLLAMA_MODEL = selected;
+            } else {
+                log('[warn]', 'No configured models are available yet.');
+            }
+        } else {
+            log('[warn]', 'No configured models are available yet.');
         }
     } else {
-        log('⚠️ ', `Ollama is not reachable at ${OLLAMA_HOST}`);
-        log('  ', 'Please start Ollama manually to enable AI enrichment.');
-        log('  ', 'The app will still work with structural analysis only.');
+        log('[warn]', `Ollama is not reachable at ${OLLAMA_HOST}`);
+        log('     ', 'AI enrichment will be unavailable - structural analysis only.');
     }
 
     console.log('');
