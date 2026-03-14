@@ -16,6 +16,10 @@ const nextConfig = {
     config.resolve.alias = {
       ...(config.resolve.alias || {}),
       'framer-motion': require.resolve('framer-motion'),
+      '@reactflow/core': path.resolve(
+        __dirname,
+        'node_modules/@reactflow/core/dist/esm/index.js'
+      ),
     };
     return config;
   },
