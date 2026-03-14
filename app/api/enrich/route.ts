@@ -1,6 +1,11 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { enrichProject } from '@/lib/ai/enrichProject';
-import { getAnalysisEntry, setProjectEnrichment } from '@/lib/ai/analysisCache';
+import {
+  getAnalysisEntry,
+  getProjectSnapshot,
+  setProjectEnrichment,
+} from '@/lib/ai/analysisCache';
+import { queueAnalysisJobs } from '@/lib/ai/analysisQueue';
 import type { ParsedProject } from '@/lib/types/project';
 
 interface EnrichRequest {
@@ -23,8 +28,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           cached: true,
         });
       }
+      const snapshot = getProjectSnapshot(body.analysisId);
+      if (snapshot) {
+        queueAnalysisJobs(body.analysisId, snapshot);
+      }
       return NextResponse.json(
-        { success: false, pending: true, error: 'AI enrichment is still running' },
+        {
+          success: false,
+          pending: true,
+          error: cached?.projectError ?? 'AI enrichment is still running',
+          status: cached?.projectStatus ?? 'working',
+        },
         { status: 202 }
       );
     }

@@ -1,7 +1,12 @@
 ﻿import type { ParsedProject } from '@/lib/types/project';
 import { enrichProject } from '@/lib/ai/enrichProject';
 import { generateFileOverview } from '@/lib/ai/generateFileOverview';
-import { ensureAnalysisEntry, setProjectEnrichment, setFileOverviewInCache } from '@/lib/ai/analysisCache';
+import {
+  ensureAnalysisEntry,
+  setProjectEnrichment,
+  setFileOverviewInCache,
+  setProjectStatus,
+} from '@/lib/ai/analysisCache';
 
 const DEFAULT_FILE_OVERVIEW_CONCURRENCY = 4;
 const DEFAULT_RESERVE_MB = 384;
@@ -12,6 +17,10 @@ const globalAny = globalThis as {
 
 const taskCache = globalAny.__pvvAnalysisTasks ?? new Map<string, Promise<void>>();
 globalAny.__pvvAnalysisTasks = taskCache;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function readInt(value: string | undefined, fallback: number): number {
   if (!value) return fallback;
@@ -54,6 +63,26 @@ function reserveMemory(targetMb: number, estimatedMb: number): () => void {
   };
 }
 
+async function retryIndefinitely<T>(
+  label: string,
+  task: () => Promise<T>,
+  onError?: (message: string) => void
+): Promise<T> {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await task();
+    } catch (err) {
+      attempt += 1;
+      const message = err instanceof Error ? err.message : `${label} failed`;
+      if (onError) onError(message);
+      const backoff = Math.min(60000, 2000 * Math.pow(2, Math.min(attempt, 4)));
+      console.warn(`${label} failed (attempt ${attempt}). Retrying in ${backoff}ms.`, err);
+      await delay(backoff);
+    }
+  }
+}
+
 async function runWithConcurrency<T>(
   items: T[],
   limit: number,
@@ -73,28 +102,40 @@ async function runWithConcurrency<T>(
 async function generateAllFileOverviews(analysisId: string, project: ParsedProject): Promise<void> {
   const concurrency = readInt(process.env.PVW_FILE_OVERVIEW_CONCURRENCY, DEFAULT_FILE_OVERVIEW_CONCURRENCY);
   await runWithConcurrency(project.files, concurrency, async (file) => {
-    const overview = await generateFileOverview({
-      file,
-      projectName: project.projectName,
-      framework: project.detectedFramework,
+    await retryIndefinitely(`File overview: ${file.filePath}`, async () => {
+      const overview = await generateFileOverview({
+        file,
+        projectName: project.projectName,
+        framework: project.detectedFramework,
+      });
+      setFileOverviewInCache(analysisId, file.filePath, overview);
     });
-    setFileOverviewInCache(analysisId, file.filePath, overview);
   });
 }
 
 async function runAnalysisJobs(analysisId: string, project: ParsedProject): Promise<void> {
   ensureAnalysisEntry(analysisId);
+  setProjectStatus(analysisId, 'working');
   const reserveTarget = readInt(process.env.PVW_ANALYZE_MEMORY_MB, DEFAULT_RESERVE_MB);
   const releaseReserve = reserveMemory(reserveTarget, estimateProjectMb(project));
 
   try {
-    const projectPromise = enrichProject(project).then((result) => {
-      setProjectEnrichment(analysisId, result.enrichment, {
-        aiModel: result.model,
-      });
-    });
+    const projectPromise = retryIndefinitely(
+      'Project enrichment',
+      async () => {
+        setProjectStatus(analysisId, 'working');
+        const result = await enrichProject(project);
+        setProjectEnrichment(analysisId, result.enrichment, {
+          aiModel: result.model,
+        });
+        return result;
+      },
+      (message) => setProjectStatus(analysisId, 'error', message)
+    );
 
-    const filePromise = generateAllFileOverviews(analysisId, project);
+    const filePromise = retryIndefinitely('File overview batch', async () => {
+      await generateAllFileOverviews(analysisId, project);
+    });
 
     await Promise.all([projectPromise, filePromise]);
   } finally {

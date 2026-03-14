@@ -4,7 +4,7 @@ import { createHash } from 'crypto';
 import { parseProject } from '@/lib/parsers/index';
 import { OLLAMA_MODELS } from '@/lib/ai/ollamaClient';
 import { queueAnalysisJobs } from '@/lib/ai/analysisQueue';
-import { getAnalysisEntry } from '@/lib/ai/analysisCache';
+import { getAnalysisEntry, setProjectSnapshot } from '@/lib/ai/analysisCache';
 import { buildGraph } from '@/lib/graph/buildGraph';
 import { computeLayout } from '@/lib/graph/layoutEngine';
 import { shouldIgnorePath, isBinaryFile, isMinifiedFile, hasSourceFiles as checkHasSource, normalizePath } from '@/lib/utils/fileUtils';
@@ -139,6 +139,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Parse project
     const parsed = parseProject(files);
+    setProjectSnapshot(analysisId, parsed);
 
     // Kick off AI enrichment + file overviews in the background
     queueAnalysisJobs(analysisId, parsed);

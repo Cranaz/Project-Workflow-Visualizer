@@ -1,4 +1,4 @@
-﻿import type { AIEnrichmentResult } from '@/lib/types/project';
+﻿import type { AIEnrichmentResult, ParsedProject } from '@/lib/types/project';
 import { normalizePath } from '@/lib/utils/fileUtils';
 
 export interface CachedFileOverview {
@@ -13,6 +13,9 @@ export interface AnalysisCacheEntry {
   aiModel?: string;
   aiTimeMs?: number;
   createdAt: number;
+  projectSnapshot?: ParsedProject;
+  projectStatus?: 'working' | 'ready' | 'error';
+  projectError?: string;
 }
 
 const globalAny = globalThis as { __pvvAnalysisCache?: Map<string, AnalysisCacheEntry> };
@@ -55,6 +58,27 @@ export function setProjectEnrichment(
   entry.projectEnrichment = enrichment;
   entry.aiModel = meta?.aiModel;
   entry.aiTimeMs = meta?.aiTimeMs;
+  entry.projectStatus = 'ready';
+  entry.projectError = undefined;
+}
+
+export function setProjectSnapshot(id: string, project: ParsedProject): void {
+  const entry = ensureAnalysisEntry(id);
+  entry.projectSnapshot = project;
+}
+
+export function setProjectStatus(
+  id: string,
+  status: AnalysisCacheEntry['projectStatus'],
+  error?: string
+): void {
+  const entry = ensureAnalysisEntry(id);
+  entry.projectStatus = status;
+  entry.projectError = error;
+}
+
+export function getProjectSnapshot(id: string): ParsedProject | null {
+  return cache.get(id)?.projectSnapshot ?? null;
 }
 
 export function setFileOverviewInCache(

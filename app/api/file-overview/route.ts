@@ -1,7 +1,8 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { callOllama } from '@/lib/ai/ollamaClient';
 import { buildFileOverviewPrompt } from '@/lib/ai/buildFileOverviewPrompt';
-import { getFileOverviewFromCache } from '@/lib/ai/analysisCache';
+import { getFileOverviewFromCache, getProjectSnapshot } from '@/lib/ai/analysisCache';
+import { queueAnalysisJobs } from '@/lib/ai/analysisQueue';
 import type { ParsedExport } from '@/lib/types/parser';
 
 const MAX_OVERVIEW_CHARS = 120_000;
@@ -49,6 +50,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           truncated: cached.truncated,
           cached: true,
         });
+      }
+      const snapshot = getProjectSnapshot(body.analysisId);
+      if (snapshot) {
+        queueAnalysisJobs(body.analysisId, snapshot);
       }
       return NextResponse.json(
         { success: false, pending: true, error: 'File overview still generating' },
