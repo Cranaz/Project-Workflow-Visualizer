@@ -1,0 +1,182 @@
+'use client';
+
+import { useState, useCallback } from 'react';
+import { useWorkflowStore } from '@/lib/store/workflowStore';
+import type { AnalyzeResponse } from '@/lib/types/project';
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_RETRIES = 2;
+
+export function useProjectUpload() {
+  const [error, setError] = useState<string | null>(null);
+  const {
+    setUploadState,
+    setUploadError,
+    setProject,
+    updateProcessingStep,
+    setProcessingSteps,
+  } = useWorkflowStore();
+
+  const resetSteps = useCallback(() => {
+    setProcessingSteps([
+      { label: 'Extracting files...', status: 'pending' },
+      { label: 'Parsing source code...', status: 'pending' },
+      { label: 'Mapping relationships...', status: 'pending' },
+      { label: 'Sending to Qwen for analysis...', status: 'pending' },
+      { label: 'Building intelligent graph...', status: 'pending' },
+      { label: 'Rendering visualization...', status: 'pending' },
+    ]);
+  }, [setProcessingSteps]);
+
+  const uploadFile = useCallback(
+    async (file: File): Promise<boolean> => {
+      setError(null);
+      resetSteps();
+      setUploadState('uploading');
+
+      if (file.size > MAX_FILE_SIZE) {
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+        setError(`File too large: ${sizeMB}MB (max 50MB)`);
+        setUploadError(`File too large: ${sizeMB}MB (max 50MB)`);
+        return false;
+      }
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      let retries = 0;
+      while (retries <= MAX_RETRIES) {
+        try {
+          updateProcessingStep(0, 'active');
+          setUploadState('uploading');
+
+          const response = await fetch('/api/analyze', {
+            method: 'POST',
+            body: formData,
+          });
+
+          updateProcessingStep(0, 'done');
+          updateProcessingStep(1, 'active');
+          setUploadState('parsing');
+
+          if (!response.ok) {
+            const errData = (await response.json().catch(() => ({}))) as { error?: string };
+            throw new Error(errData.error ?? `Server error: ${response.status}`);
+          }
+
+          updateProcessingStep(1, 'done');
+          updateProcessingStep(2, 'active');
+          setUploadState('enriching');
+
+          const result = (await response.json()) as AnalyzeResponse;
+
+          if (!result.success) {
+            throw new Error(result.error ?? 'Analysis failed');
+          }
+
+          updateProcessingStep(2, 'done');
+          updateProcessingStep(3, 'done');
+          updateProcessingStep(4, 'active');
+
+          setUploadState('building');
+          // Small delay for visual effect
+          await new Promise((r) => setTimeout(r, 300));
+          updateProcessingStep(4, 'done');
+          updateProcessingStep(5, 'active');
+
+          setProject(result.data);
+
+          await new Promise((r) => setTimeout(r, 200));
+          updateProcessingStep(5, 'done');
+
+          return true;
+        } catch (err) {
+          retries++;
+          if (retries > MAX_RETRIES) {
+            const msg = err instanceof Error ? err.message : 'Upload failed';
+            setError(msg);
+            setUploadError(msg);
+            return false;
+          }
+          // Exponential backoff
+          await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, retries - 1)));
+        }
+      }
+      return false;
+    },
+    [setUploadState, setUploadError, setProject, updateProcessingStep, resetSteps, setError]
+  );
+
+  const uploadFiles = useCallback(
+    async (files: FileList | File[]): Promise<boolean> => {
+      const fileArray = Array.from(files);
+      if (fileArray.length === 0) return false;
+
+      // If single file and it's a zip, upload directly
+      if (fileArray.length === 1 && fileArray[0].name.endsWith('.zip')) {
+        return uploadFile(fileArray[0]);
+      }
+
+      // For multiple files, create a FormData with all files
+      setError(null);
+      resetSteps();
+      setUploadState('uploading');
+
+      const totalSize = fileArray.reduce((sum, f) => sum + f.size, 0);
+      if (totalSize > MAX_FILE_SIZE) {
+        const sizeMB = (totalSize / (1024 * 1024)).toFixed(1);
+        setError(`Total size too large: ${sizeMB}MB (max 50MB)`);
+        setUploadError(`Total size too large: ${sizeMB}MB (max 50MB)`);
+        return false;
+      }
+
+      const formData = new FormData();
+      for (const file of fileArray) {
+        formData.append('files[]', file);
+      }
+
+      try {
+        updateProcessingStep(0, 'active');
+
+        const response = await fetch('/api/analyze', {
+          method: 'POST',
+          body: formData,
+        });
+
+        updateProcessingStep(0, 'done');
+        updateProcessingStep(1, 'active');
+        setUploadState('parsing');
+
+        if (!response.ok) {
+          const errData = (await response.json().catch(() => ({}))) as { error?: string };
+          throw new Error(errData.error ?? `Server error: ${response.status}`);
+        }
+
+        const result = (await response.json()) as AnalyzeResponse;
+        if (!result.success) throw new Error(result.error ?? 'Analysis failed');
+
+        updateProcessingStep(1, 'done');
+        updateProcessingStep(2, 'done');
+        updateProcessingStep(3, 'done');
+        updateProcessingStep(4, 'active');
+        setUploadState('building');
+
+        await new Promise((r) => setTimeout(r, 300));
+        updateProcessingStep(4, 'done');
+        updateProcessingStep(5, 'active');
+
+        setProject(result.data);
+        updateProcessingStep(5, 'done');
+        return true;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Upload failed';
+        setError(msg);
+        setUploadError(msg);
+        return false;
+      }
+    },
+    [uploadFile, setUploadState, setUploadError, setProject, updateProcessingStep, resetSteps, setError]
+  );
+
+  return { uploadFile, uploadFiles, error };
+}

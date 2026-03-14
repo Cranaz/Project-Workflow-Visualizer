@@ -1,0 +1,195 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Backgrounds */
+  --bg-base: #0A0A0F;
+  --bg-surface: #111118;
+  --bg-elevated: #1A1A24;
+  --bg-overlay: #22222E;
+
+  /* Borders */
+  --border-subtle: #1E1E2A;
+  --border-muted: #2A2A38;
+  --border-default: #363647;
+
+  /* Text */
+  --text-primary: #F0F0FA;
+  --text-secondary: #9090A8;
+  --text-muted: #60607A;
+  --text-disabled: #40404A;
+
+  /* Accent */
+  --accent-primary: #6366F1;
+  --accent-hover: #818CF8;
+  --accent-glow: rgba(99, 102, 241, 0.15);
+
+  /* Node type colors */
+  --node-entry: #F59E0B;
+  --node-component: #6366F1;
+  --node-hook: #8B5CF6;
+  --node-api: #10B981;
+  --node-service: #3B82F6;
+  --node-database: #EF4444;
+  --node-config: #6B7280;
+  --node-style: #EC4899;
+  --node-test: #F97316;
+  --node-external: #14B8A6;
+  --node-inferred: #A855F7;
+
+  /* Fonts */
+  --font-geist: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-jetbrains: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-geist);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Focus rings */
+*:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* ReactFlow overrides */
+.react-flow__background {
+  background-color: var(--bg-base) !important;
+}
+
+.react-flow__minimap {
+  background-color: var(--bg-surface) !important;
+  border: 1px solid var(--border-muted) !important;
+  border-radius: 8px !important;
+}
+
+.react-flow__controls {
+  background: var(--bg-elevated) !important;
+  border: 1px solid var(--border-muted) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4) !important;
+}
+
+.react-flow__controls-button {
+  background: var(--bg-elevated) !important;
+  fill: var(--text-secondary) !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+}
+
+.react-flow__controls-button:hover {
+  background: var(--bg-overlay) !important;
+  fill: var(--text-primary) !important;
+}
+
+.react-flow__edge-path {
+  stroke-width: 1.5;
+}
+
+.react-flow__attribution {
+  display: none !important;
+}
+
+/* Selection rectangle */
+.react-flow__selection {
+  background: rgba(99, 102, 241, 0.08) !important;
+  border: 1px solid rgba(99, 102, 241, 0.3) !important;
+}
+
+/* Node animations */
+.workflow-node {
+  animation: node-enter 0.4s ease-out forwards;
+}
+
+@keyframes node-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Edge flow animation */
+.edge-flow-path {
+  stroke-dasharray: 6 4;
+  animation: flow-dash 1s linear infinite;
+}
+
+@keyframes flow-dash {
+  from {
+    stroke-dashoffset: 24;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Pulse glow animation for upload zone */
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 8px var(--accent-glow);
+  }
+  50% {
+    box-shadow: 0 0 24px var(--accent-glow), 0 0 48px var(--accent-glow);
+  }
+}
+
+/* Utility classes */
+.glass {
+  background: rgba(17, 17, 24, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.gradient-border {
+  background: linear-gradient(135deg, var(--accent-primary), var(--node-hook));
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-hover));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
