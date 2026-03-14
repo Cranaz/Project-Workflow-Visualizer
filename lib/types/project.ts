@@ -78,6 +78,7 @@ export interface ProjectMeta {
   aiAvailable: boolean;
   aiModel?: string;
   warnings: string[];
+  analysisId?: string;
 }
 
 export interface AnalyzeResponse {

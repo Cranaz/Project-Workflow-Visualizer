@@ -1,13 +1,58 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import JSZip from 'jszip';
+import { createHash } from 'crypto';
 import { parseProject } from '@/lib/parsers/index';
 import { OLLAMA_MODELS } from '@/lib/ai/ollamaClient';
+import { enrichProject } from '@/lib/ai/enrichProject';
+import { generateFileOverview } from '@/lib/ai/generateFileOverview';
+import { getAnalysisEntry, setProjectEnrichment, setFileOverviewInCache } from '@/lib/ai/analysisCache';
 import { buildGraph } from '@/lib/graph/buildGraph';
 import { computeLayout } from '@/lib/graph/layoutEngine';
 import { shouldIgnorePath, isBinaryFile, isMinifiedFile, hasSourceFiles as checkHasSource, normalizePath } from '@/lib/utils/fileUtils';
 import type { AnalyzeResponse } from '@/lib/types/project';
+import type { ParsedProject } from '@/lib/types/project';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const FILE_OVERVIEW_CONCURRENCY = 3;
+
+function createAnalysisId(files: Map<string, string>): string {
+  const hash = createHash('sha1');
+  const entries = Array.from(files.entries()).sort(([a], [b]) => a.localeCompare(b));
+  for (const [path, content] of entries) {
+    hash.update(path);
+    hash.update(String(content.length));
+    hash.update(content);
+  }
+  return hash.digest('hex');
+}
+
+async function runWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  worker: (item: T) => Promise<void>
+): Promise<void> {
+  let index = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (index < items.length) {
+      const current = index;
+      index += 1;
+      await worker(items[current]);
+    }
+  });
+  await Promise.all(runners);
+}
+
+async function generateAllFileOverviews(analysisId: string, project: ParsedProject) {
+  const files = project.files;
+  await runWithConcurrency(files, FILE_OVERVIEW_CONCURRENCY, async (file) => {
+    const overview = await generateFileOverview({
+      file,
+      projectName: project.projectName,
+      framework: project.detectedFramework,
+    });
+    setFileOverviewInCache(analysisId, file.filePath, overview);
+  });
+}
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now();
@@ -120,15 +165,35 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
+    const analysisId = createAnalysisId(files);
+    const cached = getAnalysisEntry(analysisId);
+
     // Parse project
     const parsed = parseProject(files);
 
-    // AI enrichment runs asynchronously via /api/enrich for faster uploads
-    const aiEnrichment = null;
-    const aiModelUsed = OLLAMA_MODELS[0];
-    const aiTimeMs = 0;
+    // Generate AI overview + file overviews during analysis
+    let aiEnrichment = cached?.projectEnrichment ?? null;
+    let aiModelUsed = cached?.aiModel ?? OLLAMA_MODELS[0];
+    let aiTimeMs = cached?.aiTimeMs ?? 0;
 
-    // Build graph
+    if (!aiEnrichment) {
+      const aiStart = Date.now();
+      const aiResult = await enrichProject(parsed);
+      aiTimeMs = Date.now() - aiStart;
+      aiEnrichment = aiResult.enrichment;
+      aiModelUsed = aiResult.model;
+      setProjectEnrichment(analysisId, aiEnrichment, {
+        aiModel: aiModelUsed,
+        aiTimeMs,
+      });
+    }
+
+    const cachedFileCount = cached?.fileOverviews ? Object.keys(cached.fileOverviews).length : 0;
+    if (cachedFileCount < parsed.files.length) {
+      await generateAllFileOverviews(analysisId, parsed);
+    }
+
+    // Build graph (with AI enrichment data applied to nodes)
     const { nodes, edges } = buildGraph(parsed, aiEnrichment);
 
     // Layout
@@ -138,7 +203,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       nodeSep: 80,
     });
 
-    // Apply positions
     const positionedNodes = nodes.map((node) => ({
       ...node,
       position: positions[node.id] ?? { x: 0, y: 0 },
@@ -146,11 +210,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const processingTimeMs = Date.now() - startTime;
 
+    const clientProject: ParsedProject = {
+      ...parsed,
+      files: parsed.files.map((file) => ({
+        ...file,
+        rawContent: '',
+      })),
+    };
+
     const response: AnalyzeResponse = {
       success: true,
       data: {
-        project: parsed,
-        aiEnrichment,
+        project: clientProject,
+        aiEnrichment: null,
         graph: {
           nodes: positionedNodes,
           edges,
@@ -161,9 +233,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           fileCount: parsed.totalFiles,
           nodeCount: positionedNodes.length,
           edgeCount: edges.length,
-          aiAvailable: false,
+          aiAvailable: Boolean(aiEnrichment),
           aiModel: aiModelUsed,
           warnings: aiEnrichment?.warnings ?? [],
+          analysisId,
         },
       },
     };
@@ -181,5 +254,5 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 }
 
-export const maxDuration = 300; // 5 minutes maximum
+export const maxDuration = 1200; // 20 minutes maximum
 export const dynamic = 'force-dynamic';

@@ -18,6 +18,7 @@ export function DetailDrawer() {
   const aiStatus = useWorkflowStore((s) => s.aiStatus);
   const aiDetail = useWorkflowStore((s) => s.aiDetail);
   const parsedProject = useWorkflowStore((s) => s.parsedProject);
+  const analysisId = useWorkflowStore((s) => s.projectMeta?.analysisId ?? null);
   const fileOverviews = useWorkflowStore((s) => s.fileOverviews);
   const setFileOverview = useWorkflowStore((s) => s.setFileOverview);
   const { selectedNode, connectedFiles } = useNodeDetails();
@@ -51,7 +52,7 @@ export function DetailDrawer() {
       const filePath = selectedNode.data.filePath;
       const fileRecord = parsedProject?.files.find((f) => f.filePath === filePath);
 
-      if (!fileRecord?.rawContent) {
+      if (!analysisId && !fileRecord?.rawContent) {
         setFileOverview(filePath, {
           status: 'error',
           content: '',
@@ -63,20 +64,25 @@ export function DetailDrawer() {
       setFileOverview(filePath, { status: 'loading', content: '' });
 
       try {
+        const payload: Record<string, unknown> = {
+          filePath,
+          analysisId: analysisId ?? undefined,
+          language: fileRecord?.language,
+          lineCount: fileRecord?.lineCount,
+          imports: fileRecord?.imports,
+          exports: fileRecord?.exports,
+          projectName: parsedProject?.projectName,
+          framework: parsedProject?.detectedFramework,
+        };
+        if (!analysisId && fileRecord?.rawContent) {
+          payload.content = fileRecord.rawContent;
+        }
+
         const response = await fetch('/api/file-overview', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           signal,
-          body: JSON.stringify({
-            filePath,
-            content: fileRecord.rawContent,
-            language: fileRecord.language,
-            lineCount: fileRecord.lineCount,
-            imports: fileRecord.imports,
-            exports: fileRecord.exports,
-            projectName: parsedProject?.projectName,
-            framework: parsedProject?.detectedFramework,
-          }),
+          body: JSON.stringify(payload),
         });
 
         const data = (await response.json()) as { success?: boolean; overview?: string; error?: string };
@@ -94,7 +100,7 @@ export function DetailDrawer() {
         setFileOverview(filePath, { status: 'error', content: '', error: message });
       }
     },
-    [aiStatus, parsedProject, selectedNode, setFileOverview]
+    [aiStatus, analysisId, parsedProject, selectedNode, setFileOverview]
   );
 
   useEffect(() => {

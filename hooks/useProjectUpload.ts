@@ -30,13 +30,13 @@ export function useProjectUpload() {
   }, [setProcessingSteps]);
 
   const runAiEnrichment = useCallback(
-    async (project: AnalyzeResponse['data']['project']) => {
+    async (project: AnalyzeResponse['data']['project'], analysisId?: string) => {
       try {
         updateProcessingStep(3, 'active');
         const response = await fetch('/api/enrich', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ project }),
+          body: JSON.stringify(analysisId ? { analysisId } : { project }),
         });
 
         const data = (await response.json().catch(() => ({}))) as {
@@ -120,7 +120,7 @@ export function useProjectUpload() {
           setProject(result.data);
           updateProcessingStep(5, 'done');
 
-          void runAiEnrichment(result.data.project);
+          void runAiEnrichment(result.data.project, result.data.meta.analysisId);
 
           return true;
         } catch (err) {
@@ -197,7 +197,7 @@ export function useProjectUpload() {
 
         setProject(result.data);
         updateProcessingStep(5, 'done');
-        void runAiEnrichment(result.data.project);
+        void runAiEnrichment(result.data.project, result.data.meta.analysisId);
         return true;
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Upload failed';

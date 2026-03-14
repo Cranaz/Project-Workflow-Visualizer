@@ -28,6 +28,7 @@ export default function AnalyzePage() {
   const parsedProject = useWorkflowStore((s) => s.parsedProject);
   const aiEnrichment = useWorkflowStore((s) => s.aiEnrichment);
   const aiStatus = useWorkflowStore((s) => s.aiStatus);
+  const analysisId = useWorkflowStore((s) => s.projectMeta?.analysisId);
   const setAiStatus = useWorkflowStore((s) => s.setAiStatus);
   const setAiModel = useWorkflowStore((s) => s.setAiModel);
   const setAiDetail = useWorkflowStore((s) => s.setAiDetail);
@@ -96,7 +97,7 @@ export default function AnalyzePage() {
         const response = await fetch('/api/enrich', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ project: parsedProject }),
+          body: JSON.stringify(analysisId ? { analysisId } : { project: parsedProject }),
         });
 
         const data = (await response.json().catch(() => ({}))) as {
@@ -133,7 +134,7 @@ export default function AnalyzePage() {
       cancelled = true;
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [parsedProject, aiEnrichment, aiStatus, setAiEnrichment, setAiDetail]);
+  }, [parsedProject, aiEnrichment, aiStatus, analysisId, setAiEnrichment, setAiDetail]);
 
   if (!parsedProject) {
     return (

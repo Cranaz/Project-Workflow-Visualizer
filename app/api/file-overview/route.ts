@@ -1,19 +1,21 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { callOllama } from '@/lib/ai/ollamaClient';
 import { buildFileOverviewPrompt } from '@/lib/ai/buildFileOverviewPrompt';
+import { getFileOverviewFromCache } from '@/lib/ai/analysisCache';
 import type { ParsedExport } from '@/lib/types/parser';
 
 const MAX_OVERVIEW_CHARS = 120_000;
 
 interface FileOverviewRequest {
   filePath: string;
-  content: string;
+  content?: string;
   language?: string;
   lineCount?: number;
   imports?: Array<{ source: string; specifiers?: string[] }>;
   exports?: Array<{ name: string; type?: string }>;
   projectName?: string;
   framework?: string;
+  analysisId?: string;
 }
 
 const EXPORT_TYPES: ParsedExport['type'][] = [
@@ -36,6 +38,19 @@ function normalizeExportType(value: string | undefined): ParsedExport['type'] {
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const body = (await request.json()) as FileOverviewRequest;
+
+    if (body?.analysisId && body?.filePath) {
+      const cached = getFileOverviewFromCache(body.analysisId, body.filePath);
+      if (cached) {
+        return NextResponse.json({
+          success: true,
+          overview: cached.overview,
+          model: cached.model,
+          truncated: cached.truncated,
+          cached: true,
+        });
+      }
+    }
 
     if (!body?.filePath || !body?.content) {
       return NextResponse.json(
