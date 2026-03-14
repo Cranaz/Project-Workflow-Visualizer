@@ -278,7 +278,7 @@ export function UploadZone() {
                 }}
                 icon={<ArrowRight size={16} />}
               >
-                Analyze Project ->
+                Analyze Project &rarr;
               </Button>
             </div>
           </>
