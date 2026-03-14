@@ -8,8 +8,13 @@ import { useWorkflowStore } from '@/lib/store/workflowStore';
 export default function HomePage() {
   const router = useRouter();
   const uploadState = useWorkflowStore((s) => s.uploadState);
+  const parsedProject = useWorkflowStore((s) => s.parsedProject);
 
   useEffect(() => {
+    if (parsedProject) {
+      router.push('/analyze');
+      return;
+    }
     if (uploadState === 'success') {
       // Delay slightly for the final progress animation
       const timer = setTimeout(() => {
@@ -17,7 +22,7 @@ export default function HomePage() {
       }, 600);
       return () => clearTimeout(timer);
     }
-  }, [uploadState, router]);
+  }, [uploadState, parsedProject, router]);
 
   return (
     <main>

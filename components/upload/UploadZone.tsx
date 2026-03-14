@@ -20,6 +20,7 @@ export function UploadZone() {
   const folderInputRef = useRef<HTMLInputElement>(null);
   const { uploadFile, uploadFiles, error } = useProjectUpload();
   const uploadState = useWorkflowStore((s) => s.uploadState);
+  const parsedProject = useWorkflowStore((s) => s.parsedProject);
   const processingSteps = useWorkflowStore((s) => s.processingSteps);
   const [startTime, setStartTime] = useState<number>(0);
   const [elapsed, setElapsed] = useState<number>(0);
@@ -257,6 +258,17 @@ export function UploadZone() {
 
             {/* Buttons */}
             <div className="mt-6 flex gap-3 justify-center">
+              {parsedProject && (
+                <Button
+                  variant="secondary"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.location.href = '/analyze';
+                  }}
+                >
+                  Open Workflow
+                </Button>
+              )}
               <Button
                 variant="secondary"
                 onClick={(e) => {
