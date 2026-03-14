@@ -27,6 +27,7 @@ interface WorkflowState {
   searchQuery: string;
   isClusterMode: boolean;
   aiModel: string | null;
+  aiDetail: string | null;
   fileOverviews: Record<string, FileOverviewState>;
   uploadState: UploadState;
   uploadError: string | null;
@@ -46,6 +47,7 @@ interface WorkflowState {
   setUploadError: (error: string | null) => void;
   setAiStatus: (status: AiStatus) => void;
   setAiModel: (model: string | null) => void;
+  setAiDetail: (detail: string | null) => void;
   resetStore: () => void;
   updateNodePositions: (positions: Record<string, XYPosition>) => void;
   setProcessingSteps: (steps: ProcessingStep[]) => void;
@@ -83,6 +85,7 @@ const initialState = {
   searchQuery: '',
   isClusterMode: false,
   aiModel: null,
+  aiDetail: null,
   fileOverviews: {},
   uploadState: 'idle' as UploadState,
   uploadError: null,
@@ -103,6 +106,7 @@ export const useWorkflowStore = create<WorkflowState>((set) => ({
       edges: data.graph.edges,
       projectMeta: data.meta,
       aiModel: data.meta.aiModel ?? null,
+      aiDetail: null,
       fileOverviews: {},
       uploadState: 'success',
       uploadError: null,
@@ -146,6 +150,9 @@ export const useWorkflowStore = create<WorkflowState>((set) => ({
 
   setAiModel: (aiModel) =>
     set({ aiModel }),
+
+  setAiDetail: (aiDetail) =>
+    set({ aiDetail }),
 
   resetStore: () =>
     set({

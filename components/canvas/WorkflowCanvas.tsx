@@ -60,6 +60,7 @@ export function WorkflowCanvas() {
   const hoveredNodeId = useWorkflowStore((s) => s.hoveredNodeId);
   const aiStatus = useWorkflowStore((s) => s.aiStatus);
   const aiModel = useWorkflowStore((s) => s.aiModel);
+  const aiDetail = useWorkflowStore((s) => s.aiDetail);
 
   useWorkflowLayout();
 
@@ -87,7 +88,7 @@ export function WorkflowCanvas() {
       tone: 'warn',
       message: 'AI engine is unavailable right now. We will keep trying automatically.',
     };
-  }, [aiStatus, aiModel]);
+  }, [aiStatus, aiModel, aiDetail]);
 
   // Dim unconnected nodes on hover
   const styledNodes = useMemo(() => {
@@ -159,6 +160,11 @@ export function WorkflowCanvas() {
             }`}
           >
             {statusBanner.message}
+            {aiDetail && (
+              <span className="block text-[11px] mt-1 opacity-80">
+                {aiDetail}
+              </span>
+            )}
           </p>
         </div>
       )}

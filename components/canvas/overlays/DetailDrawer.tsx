@@ -16,6 +16,7 @@ export function DetailDrawer() {
   const isOpen = useWorkflowStore((s) => s.isDrawerOpen);
   const selectNode = useWorkflowStore((s) => s.selectNode);
   const aiStatus = useWorkflowStore((s) => s.aiStatus);
+  const aiDetail = useWorkflowStore((s) => s.aiDetail);
   const parsedProject = useWorkflowStore((s) => s.parsedProject);
   const fileOverviews = useWorkflowStore((s) => s.fileOverviews);
   const setFileOverview = useWorkflowStore((s) => s.setFileOverview);
@@ -39,10 +40,10 @@ export function DetailDrawer() {
       return 'Model is still warming up. File overview will appear automatically.';
     }
     if (aiStatus === 'offline') {
-      return 'AI engine is unavailable right now. We will keep retrying automatically.';
+      return aiDetail ?? 'AI engine is unavailable right now. We will keep retrying automatically.';
     }
     return '';
-  }, [aiStatus]);
+  }, [aiStatus, aiDetail]);
 
   const requestOverview = useCallback(
     async (signal?: AbortSignal) => {

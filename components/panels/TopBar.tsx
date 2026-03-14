@@ -19,6 +19,7 @@ export function TopBar() {
   const isClusterMode = useWorkflowStore((s) => s.isClusterMode);
   const toggleClusterMode = useWorkflowStore((s) => s.toggleClusterMode);
   const aiStatus = useWorkflowStore((s) => s.aiStatus);
+  const aiDetail = useWorkflowStore((s) => s.aiDetail);
   const resetStore = useWorkflowStore((s) => s.resetStore);
   const isReportOpen = useWorkflowStore((s) => s.isReportOpen);
   const setReportOpen = useWorkflowStore((s) => s.setReportOpen);
@@ -170,7 +171,7 @@ export function TopBar() {
           New
         </Button>
 
-        {aiEnrichment?.detailedReport && (
+        {parsedProject && (
           <Button
             variant="secondary"
             size="sm"
@@ -189,6 +190,8 @@ export function TopBar() {
           onClose={() => setReportOpen(false)}
           reportContent={aiEnrichment?.detailedReport || ''}
           projectName={parsedProject.projectName}
+          aiStatus={aiStatus}
+          aiDetail={aiDetail}
         />
       )}
     </header>

@@ -28,6 +28,7 @@ export default function AnalyzePage() {
   const parsedProject = useWorkflowStore((s) => s.parsedProject);
   const setAiStatus = useWorkflowStore((s) => s.setAiStatus);
   const setAiModel = useWorkflowStore((s) => s.setAiModel);
+  const setAiDetail = useWorkflowStore((s) => s.setAiDetail);
 
   // Redirect to home if no project data
   useEffect(() => {
@@ -47,6 +48,7 @@ export default function AnalyzePage() {
         const data = (await res.json()) as HealthResponse;
         if (isCancelled) return;
         setAiModel(data.ollama.model ?? null);
+        setAiDetail(data.ollama.detail ?? null);
 
         const nextStatus: AiStatus =
           data.ollama.status ??
@@ -63,6 +65,7 @@ export default function AnalyzePage() {
       } catch {
         if (isCancelled) return;
         setAiModel(null);
+        setAiDetail(null);
         setAiStatus('offline');
         timeoutId = setTimeout(checkHealth, 5000);
       }
@@ -73,7 +76,7 @@ export default function AnalyzePage() {
       isCancelled = true;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [setAiStatus, setAiModel]);
+  }, [setAiStatus, setAiModel, setAiDetail]);
 
   if (!parsedProject) {
     return (

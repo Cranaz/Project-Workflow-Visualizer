@@ -1,6 +1,9 @@
 import { spawn } from 'child_process';
 
 const OLLAMA_HOST = process.env.OLLAMA_HOST ?? 'http://localhost:11434';
+const OLLAMA_HOST_CONFIGURED =
+  typeof process.env.OLLAMA_HOST === 'string' && process.env.OLLAMA_HOST.trim().length > 0;
+const IS_VERCEL = process.env.VERCEL === '1';
 const DEFAULT_MODELS = [
   'qwen3.5:397b-cloud',
   'deepseek-v3.2:cloud',
@@ -74,12 +77,15 @@ const AUTO_PULL = (process.env.OLLAMA_AUTO_PULL ?? 'true') === 'true';
 const READY_TIMEOUT_MS = readNumber(process.env.OLLAMA_READY_TIMEOUT_MS, 60_000);
 const READY_POLL_INTERVAL_MS = readNumber(process.env.OLLAMA_READY_POLL_INTERVAL_MS, 1_000);
 const IS_LOCAL_HOST = isLocalHost(OLLAMA_HOST);
+const VERCEL_HOST_WARNING =
+  'Ollama cannot run inside Vercel. Set OLLAMA_HOST to a reachable Ollama server.';
 
 let serveStarted = false;
 let serveStarting: Promise<void> | null = null;
 let pullInFlight: Promise<void> | null = null;
 let lastStartError: string | null = null;
 let lastPullError: string | null = null;
+let serveDisabled = false;
 
 interface OllamaCallOptions {
   numCtx?: number;
@@ -120,6 +126,12 @@ async function runOllamaCommand(args: string[], detached = false): Promise<void>
 
 async function startServe(): Promise<void> {
   if (serveStarted) return;
+  if (serveDisabled) return;
+  if (IS_VERCEL && !OLLAMA_HOST_CONFIGURED) {
+    lastStartError = VERCEL_HOST_WARNING;
+    serveDisabled = true;
+    return;
+  }
   if (!IS_LOCAL_HOST || !AUTO_START) return;
   if (serveStarting) return serveStarting;
 
@@ -130,6 +142,10 @@ async function startServe(): Promise<void> {
     })
     .catch((err) => {
       lastStartError = err instanceof Error ? err.message : 'Failed to start Ollama';
+      const code = err && typeof err === 'object' && 'code' in err ? (err as { code?: string }).code : undefined;
+      if (code === 'ENOENT') {
+        serveDisabled = true;
+      }
     })
     .finally(() => {
       serveStarted = lastStartError === null;
@@ -178,6 +194,15 @@ async function pollStatus(
 export async function ensureOllamaReady(
   options: { model?: string; waitForModel?: boolean; timeoutMs?: number } = {}
 ): Promise<OllamaReadyState> {
+  if (IS_VERCEL && !OLLAMA_HOST_CONFIGURED) {
+    return {
+      running: false,
+      modelAvailable: false,
+      status: 'offline',
+      detail: VERCEL_HOST_WARNING,
+    };
+  }
+
   const targetModel = options.model ?? OLLAMA_MODEL;
   const timeoutMs = options.timeoutMs ?? READY_TIMEOUT_MS;
   let status = await checkOllamaStatus(targetModel);
@@ -198,10 +223,11 @@ export async function ensureOllamaReady(
     }
   }
 
+  const hasStartError = Boolean(lastStartError) && !status.running;
   let serviceStatus: OllamaServiceStatus;
   if (status.running && status.modelAvailable) {
     serviceStatus = 'ready';
-  } else if (!status.running && autoStartAttempted) {
+  } else if (!status.running && autoStartAttempted && !hasStartError) {
     serviceStatus = 'starting';
   } else if (status.running && !status.modelAvailable && (autoPullAttempted || pullInFlight)) {
     serviceStatus = 'pulling';

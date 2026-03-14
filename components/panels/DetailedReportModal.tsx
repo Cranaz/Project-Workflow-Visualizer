@@ -1,16 +1,26 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, FileText } from 'lucide-react';
+import { X, FileText, AlertTriangle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import type { AiStatus } from '@/lib/types/project';
 
 interface DetailedReportModalProps {
   isOpen: boolean;
   onClose: () => void;
   reportContent: string;
   projectName: string;
+  aiStatus?: AiStatus;
+  aiDetail?: string | null;
 }
 
-export function DetailedReportModal({ isOpen, onClose, reportContent, projectName }: DetailedReportModalProps) {
+export function DetailedReportModal({
+  isOpen,
+  onClose,
+  reportContent,
+  projectName,
+  aiStatus,
+  aiDetail,
+}: DetailedReportModalProps) {
   return (
     <AnimatePresence>
       {isOpen && (
@@ -52,7 +62,26 @@ export function DetailedReportModal({ isOpen, onClose, reportContent, projectNam
                     {reportContent}
                   </ReactMarkdown>
                 ) : (
-                  <p className="text-text-muted italic">No detailed architectural report was generated.</p>
+                  <div className="bg-elevated/60 border border-border-subtle rounded-lg p-4 text-sm text-text-secondary">
+                    <div className="flex items-center gap-2 text-text-muted mb-2">
+                      <AlertTriangle size={16} />
+                      <span className="font-semibold">AI overview not available yet</span>
+                    </div>
+                    <p className="text-[13px] text-text-secondary">
+                      The full 10K-word overview appears after the AI analysis finishes. If the AI engine
+                      is still starting or unavailable, re-run analysis once it is ready.
+                    </p>
+                    {aiStatus && (
+                      <p className="mt-2 text-[12px] text-text-muted">
+                        Status: {aiStatus}
+                      </p>
+                    )}
+                    {aiDetail && (
+                      <p className="mt-1 text-[12px] text-text-muted">
+                        {aiDetail}
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
