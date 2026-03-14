@@ -54,9 +54,6 @@ export function SidebarLeft() {
                 Project Overview
               </h3>
               <div className="mb-3 bg-gradient-to-br from-[#1A1D24] to-[#1E222A] p-4 rounded-xl border border-white/5 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-2 opacity-10">
-                  <FileText size={40} />
-                </div>
                 <p className="text-xs text-text-secondary leading-relaxed relative z-10">
                   {aiEnrichment?.projectSummary
                     ? aiEnrichment.projectSummary
@@ -140,7 +137,7 @@ export function SidebarLeft() {
               Stats
             </h3>
             <div className="text-[11px] text-text-secondary space-y-1">
-              <p>{pluralize(nodes.length, 'node')} · {pluralize(edges.length, 'edge')}</p>
+              <p>{pluralize(nodes.length, 'node')} - {pluralize(edges.length, 'edge')}</p>
               {nodes.length > 0 && (
                 <p>Most connected: {
                   nodes.reduce((best, n) =>
