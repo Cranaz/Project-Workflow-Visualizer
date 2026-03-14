@@ -186,6 +186,7 @@ export function WorkflowCanvas() {
         fitViewOptions={fitViewOptions}
         minZoom={0.1}
         maxZoom={2}
+        onlyRenderVisibleElements
         proOptions={{ hideAttribution: true }}
         nodesConnectable={nodes.length <= 100}
         aria-label="Workflow visualization canvas"
