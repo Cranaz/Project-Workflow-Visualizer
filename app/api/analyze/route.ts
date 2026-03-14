@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import JSZip from 'jszip';
 import { parseProject } from '@/lib/parsers/index';
-import { enrichProject } from '@/lib/ai/enrichProject';
 import { OLLAMA_MODELS } from '@/lib/ai/ollamaClient';
 import { buildGraph } from '@/lib/graph/buildGraph';
 import { computeLayout } from '@/lib/graph/layoutEngine';
@@ -124,12 +123,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Parse project
     const parsed = parseProject(files);
 
-    // AI enrichment
-    const aiStartTime = Date.now();
-    const aiResult = await enrichProject(parsed);
-    const aiEnrichment = aiResult?.enrichment ?? null;
-    const aiModelUsed = aiResult?.model ?? OLLAMA_MODELS[0];
-    const aiTimeMs = Date.now() - aiStartTime;
+    // AI enrichment runs asynchronously via /api/enrich for faster uploads
+    const aiEnrichment = null;
+    const aiModelUsed = OLLAMA_MODELS[0];
+    const aiTimeMs = 0;
 
     // Build graph
     const { nodes, edges } = buildGraph(parsed, aiEnrichment);
@@ -164,7 +161,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           fileCount: parsed.totalFiles,
           nodeCount: positionedNodes.length,
           edgeCount: edges.length,
-          aiAvailable: aiEnrichment !== null,
+          aiAvailable: false,
           aiModel: aiModelUsed,
           warnings: aiEnrichment?.warnings ?? [],
         },

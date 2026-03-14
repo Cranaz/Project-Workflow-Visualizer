@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { XYPosition } from 'reactflow';
 import type { NodeType, WorkflowNode, WorkflowEdge } from '@/lib/types/graph';
+import { normalizePath } from '@/lib/utils/fileUtils';
 import type {
   ParsedProject,
   AIEnrichmentResult,
@@ -48,6 +49,10 @@ interface WorkflowState {
   setAiStatus: (status: AiStatus) => void;
   setAiModel: (model: string | null) => void;
   setAiDetail: (detail: string | null) => void;
+  setAiEnrichment: (
+    enrichment: AIEnrichmentResult,
+    meta?: { aiModel?: string; aiTimeMs?: number }
+  ) => void;
   resetStore: () => void;
   updateNodePositions: (positions: Record<string, XYPosition>) => void;
   setProcessingSteps: (steps: ProcessingStep[]) => void;
@@ -66,7 +71,7 @@ const INITIAL_PROCESSING_STEPS: ProcessingStep[] = [
   { label: 'Extracting files...', status: 'pending' },
   { label: 'Parsing source code...', status: 'pending' },
   { label: 'Mapping relationships...', status: 'pending' },
-  { label: 'Sending to AI models for analysis...', status: 'pending' },
+  { label: 'Generating AI overview...', status: 'pending' },
   { label: 'Building intelligent graph...', status: 'pending' },
   { label: 'Rendering visualization...', status: 'pending' },
 ];
@@ -153,6 +158,91 @@ export const useWorkflowStore = create<WorkflowState>((set) => ({
 
   setAiDetail: (aiDetail) =>
     set({ aiDetail }),
+
+  setAiEnrichment: (enrichment, meta) =>
+    set((state) => {
+      const fileDescriptions = new Map(
+        Object.entries(enrichment.fileDescriptions ?? {}).map(([path, data]) => [
+          normalizePath(path),
+          data,
+        ])
+      );
+
+      const nodesWithAi = state.nodes.map((node) => {
+        const aiData = fileDescriptions.get(normalizePath(node.data.filePath));
+        if (!aiData) return node;
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            description: aiData.purpose ?? node.data.description,
+            responsibility: aiData.responsibility ?? node.data.responsibility,
+            dataIn: aiData.dataIn ?? node.data.dataIn,
+            dataOut: aiData.dataOut ?? node.data.dataOut,
+            subsystem: aiData.subsystem ?? node.data.subsystem,
+          },
+        };
+      });
+
+      const filePathToNodeId = new Map(
+        nodesWithAi.map((node) => [normalizePath(node.data.filePath), node.id])
+      );
+      const edges = [...state.edges];
+      const edgeSet = new Set(edges.map((edge) => `${edge.source}->${edge.target}`));
+
+      for (const aiEdge of enrichment.inferredEdges ?? []) {
+        const sourceId = filePathToNodeId.get(normalizePath(aiEdge.source));
+        const targetId = filePathToNodeId.get(normalizePath(aiEdge.target));
+        if (!sourceId || !targetId || sourceId === targetId) continue;
+        const edgeKey = `${sourceId}->${targetId}`;
+        if (edgeSet.has(edgeKey)) continue;
+        edgeSet.add(edgeKey);
+        edges.push({
+          id: `edge_ai_${edgeKey}`,
+          source: sourceId,
+          target: targetId,
+          type: 'dataflow',
+          data: {
+            edgeType: 'inferred',
+            label: aiEdge.relationship,
+            description: aiEdge.dataFlowing,
+            dataFlowing: aiEdge.dataFlowing,
+          },
+        });
+      }
+
+      const dependents = new Map(nodesWithAi.map((node) => [node.id, 0]));
+      for (const edge of edges) {
+        dependents.set(edge.target, (dependents.get(edge.target) ?? 0) + 1);
+      }
+
+      const nodes = nodesWithAi.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          metrics: {
+            ...node.data.metrics,
+            dependents: dependents.get(node.id) ?? node.data.metrics.dependents,
+          },
+        },
+      }));
+
+      const projectMeta = state.projectMeta
+        ? {
+            ...state.projectMeta,
+            aiAvailable: true,
+            aiModel: meta?.aiModel ?? state.projectMeta.aiModel,
+            aiTimeMs: meta?.aiTimeMs ?? state.projectMeta.aiTimeMs,
+          }
+        : state.projectMeta;
+
+      return {
+        aiEnrichment: enrichment,
+        nodes,
+        edges,
+        projectMeta,
+      };
+    }),
 
   resetStore: () =>
     set({

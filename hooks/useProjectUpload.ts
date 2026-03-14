@@ -15,6 +15,7 @@ export function useProjectUpload() {
     setProject,
     updateProcessingStep,
     setProcessingSteps,
+    setAiEnrichment,
   } = useWorkflowStore();
 
   const resetSteps = useCallback(() => {
@@ -22,11 +23,46 @@ export function useProjectUpload() {
       { label: 'Extracting files...', status: 'pending' },
       { label: 'Parsing source code...', status: 'pending' },
       { label: 'Mapping relationships...', status: 'pending' },
-      { label: 'Sending to Qwen for analysis...', status: 'pending' },
+      { label: 'Generating AI overview...', status: 'pending' },
       { label: 'Building intelligent graph...', status: 'pending' },
       { label: 'Rendering visualization...', status: 'pending' },
     ]);
   }, [setProcessingSteps]);
+
+  const runAiEnrichment = useCallback(
+    async (project: AnalyzeResponse['data']['project']) => {
+      try {
+        updateProcessingStep(3, 'active');
+        const response = await fetch('/api/enrich', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project }),
+        });
+
+        const data = (await response.json().catch(() => ({}))) as {
+          success?: boolean;
+          enrichment?: AnalyzeResponse['data']['aiEnrichment'];
+          model?: string;
+          aiTimeMs?: number;
+          error?: string;
+        };
+
+        if (!response.ok || !data?.success || !data.enrichment) {
+          updateProcessingStep(3, 'done');
+          return;
+        }
+
+        setAiEnrichment(data.enrichment, {
+          aiModel: data.model,
+          aiTimeMs: data.aiTimeMs,
+        });
+        updateProcessingStep(3, 'done');
+      } catch {
+        updateProcessingStep(3, 'done');
+      }
+    },
+    [setAiEnrichment, updateProcessingStep]
+  );
 
   const uploadFile = useCallback(
     async (file: File): Promise<boolean> => {
@@ -75,7 +111,6 @@ export function useProjectUpload() {
           }
 
           updateProcessingStep(2, 'done');
-          updateProcessingStep(3, 'done');
           updateProcessingStep(4, 'active');
 
           setUploadState('building');
@@ -88,6 +123,8 @@ export function useProjectUpload() {
 
           await new Promise((r) => setTimeout(r, 200));
           updateProcessingStep(5, 'done');
+
+          void runAiEnrichment(result.data.project);
 
           return true;
         } catch (err) {
@@ -157,7 +194,6 @@ export function useProjectUpload() {
 
         updateProcessingStep(1, 'done');
         updateProcessingStep(2, 'done');
-        updateProcessingStep(3, 'done');
         updateProcessingStep(4, 'active');
         setUploadState('building');
 
@@ -167,6 +203,7 @@ export function useProjectUpload() {
 
         setProject(result.data);
         updateProcessingStep(5, 'done');
+        void runAiEnrichment(result.data.project);
         return true;
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Upload failed';
