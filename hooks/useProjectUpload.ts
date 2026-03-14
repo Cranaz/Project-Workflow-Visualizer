@@ -45,7 +45,16 @@ export function useProjectUpload() {
           model?: string;
           aiTimeMs?: number;
           error?: string;
+          pending?: boolean;
         };
+
+        if (data?.pending) {
+          updateProcessingStep(3, 'active');
+          setTimeout(() => {
+            void runAiEnrichment(project, analysisId);
+          }, 2000);
+          return;
+        }
 
         if (!response.ok || !data?.success || !data.enrichment) {
           updateProcessingStep(3, 'done');

@@ -23,6 +23,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           cached: true,
         });
       }
+      return NextResponse.json(
+        { success: false, pending: true, error: 'AI enrichment is still running' },
+        { status: 202 }
+      );
     }
 
     if (!body?.project) {

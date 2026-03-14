@@ -85,7 +85,15 @@ export function DetailDrawer() {
           body: JSON.stringify(payload),
         });
 
-        const data = (await response.json()) as { success?: boolean; overview?: string; error?: string };
+        const data = (await response.json()) as { success?: boolean; overview?: string; error?: string; pending?: boolean };
+        if (data?.pending) {
+          setFileOverview(filePath, { status: 'loading', content: '' });
+          setTimeout(() => {
+            void requestOverview();
+          }, 2000);
+          return;
+        }
+
         if (!response.ok || !data?.success) {
           throw new Error(data?.error ?? `Overview failed (${response.status})`);
         }

@@ -106,7 +106,13 @@ export default function AnalyzePage() {
           model?: string;
           aiTimeMs?: number;
           error?: string;
+          pending?: boolean;
         };
+
+        if (data?.pending) {
+          setAiDetail('AI enrichment is still running. Retrying automatically...');
+          return;
+        }
 
         if (response.ok && data?.success && data.enrichment) {
           setAiEnrichment(data.enrichment, {

@@ -50,6 +50,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           cached: true,
         });
       }
+      return NextResponse.json(
+        { success: false, pending: true, error: 'File overview still generating' },
+        { status: 202 }
+      );
     }
 
     if (!body?.filePath || !body?.content) {
