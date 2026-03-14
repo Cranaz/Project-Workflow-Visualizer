@@ -1,4 +1,4 @@
-import type { ParsedProject } from '@/lib/types/project';
+﻿import type { ParsedProject } from '@/lib/types/project';
 import { detectEntryPoint } from '@/lib/utils/fileUtils';
 import { truncateContent } from '@/lib/utils/fileUtils';
 
@@ -39,7 +39,7 @@ function buildFileSection(files: FilePriority[]): string {
   let result = '';
   for (const fp of files) {
     if (fp.maxLines === 0) {
-      result += `\n--- FILE: ${fp.filePath} (skipped — style/test) ---\n`;
+      result += `\n--- FILE: ${fp.filePath} (skipped - style/test) ---\n`;
       continue;
     }
     const truncated = truncateContent(fp.content, fp.maxLines);
@@ -111,11 +111,11 @@ function getSchemaInstruction(): string {
   ],
   "fileDescriptions": {
     "filePath": {
-      "purpose": "string - one sentence",
-      "responsibility": "string",
-      "dataIn": "string - what data this file receives",
-      "dataOut": "string - what data this file produces",
-      "subsystem": "string - which subsystem this belongs to"
+      "purpose": "string - one sentence (max 20 words)",
+      "responsibility": "string - one sentence (max 20 words)",
+      "dataIn": "string - one sentence (max 20 words)",
+      "dataOut": "string - one sentence (max 20 words)",
+      "subsystem": "string - 1-3 words"
     }
   },
   "inferredEdges": [
