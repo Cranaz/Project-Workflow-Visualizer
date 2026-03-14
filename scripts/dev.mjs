@@ -93,7 +93,7 @@ function startNextDev() {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('');
 
-    const child = spawn('npx', ['next', 'dev'], {
+    const child = spawn('npx', ['next', 'dev', '--webpack'], {
         stdio: 'inherit',
         shell: true,
         cwd: process.cwd(),
