@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { callOllama } from '@/lib/ai/ollamaClient';
 import { buildFileOverviewPrompt } from '@/lib/ai/buildFileOverviewPrompt';
+import type { ParsedExport } from '@/lib/types/parser';
 
 const MAX_OVERVIEW_CHARS = 120_000;
 
@@ -13,6 +14,23 @@ interface FileOverviewRequest {
   exports?: Array<{ name: string; type?: string }>;
   projectName?: string;
   framework?: string;
+}
+
+const EXPORT_TYPES: ParsedExport['type'][] = [
+  'function',
+  'class',
+  'const',
+  'type',
+  'interface',
+  'variable',
+  'unknown',
+];
+
+function normalizeExportType(value: string | undefined): ParsedExport['type'] {
+  if (value && EXPORT_TYPES.includes(value as ParsedExport['type'])) {
+    return value as ParsedExport['type'];
+  }
+  return 'unknown';
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -48,12 +66,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           }))
       : [];
 
-    const normalizedExports = Array.isArray(body.exports)
+    const normalizedExports: Array<Pick<ParsedExport, 'name' | 'type'>> = Array.isArray(body.exports)
       ? body.exports
           .filter((exp) => Boolean(exp?.name))
           .map((exp) => ({
             name: exp.name,
-            type: exp.type ?? 'unknown',
+            type: normalizeExportType(exp.type),
           }))
       : [];
 
