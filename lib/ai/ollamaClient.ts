@@ -76,6 +76,8 @@ const AUTO_START = (process.env.OLLAMA_AUTO_START ?? 'true') === 'true';
 const AUTO_PULL = (process.env.OLLAMA_AUTO_PULL ?? 'true') === 'true';
 const READY_TIMEOUT_MS = readNumber(process.env.OLLAMA_READY_TIMEOUT_MS, 60_000);
 const READY_POLL_INTERVAL_MS = readNumber(process.env.OLLAMA_READY_POLL_INTERVAL_MS, 1_000);
+const WAIT_TIMEOUT_MS = readNumber(process.env.OLLAMA_WAIT_TIMEOUT_MS, 600_000);
+const WAIT_POLL_INTERVAL_MS = readNumber(process.env.OLLAMA_WAIT_POLL_INTERVAL_MS, 4_000);
 const IS_LOCAL_HOST = isLocalHost(OLLAMA_HOST);
 const VERCEL_HOST_WARNING =
   'Ollama cannot run inside Vercel. Set OLLAMA_HOST to a reachable Ollama server.';
@@ -191,6 +193,33 @@ async function pollStatus(
   return status;
 }
 
+async function waitUntilReady(model: string): Promise<OllamaReadyState> {
+  const deadline = Date.now() + WAIT_TIMEOUT_MS;
+  let state = await ensureOllamaReady({
+    model,
+    waitForModel: true,
+    timeoutMs: Math.min(READY_TIMEOUT_MS, 15_000),
+  });
+
+  if (state.running && state.modelAvailable) {
+    return state;
+  }
+
+  while (Date.now() < deadline) {
+    await delay(WAIT_POLL_INTERVAL_MS);
+    state = await ensureOllamaReady({
+      model,
+      waitForModel: true,
+      timeoutMs: Math.min(READY_TIMEOUT_MS, 15_000),
+    });
+    if (state.running && state.modelAvailable) {
+      return state;
+    }
+  }
+
+  return state;
+}
+
 export async function ensureOllamaReady(
   options: { model?: string; waitForModel?: boolean; timeoutMs?: number } = {}
 ): Promise<OllamaReadyState> {
@@ -249,17 +278,6 @@ export async function callOllama(
   prompt: string,
   options: OllamaCallOptions = {}
 ): Promise<{ response: string; model: string }> {
-  const baseReady = await ensureOllamaReady({ model: OLLAMA_MODELS[0], waitForModel: false });
-  if (!baseReady.running) {
-    const reason =
-      baseReady.status === 'starting'
-        ? 'AI engine is starting up'
-        : baseReady.status === 'pulling'
-          ? 'Model download is still in progress'
-          : 'AI engine is not ready yet';
-    throw new Error(`${reason}. The app will keep retrying in the background.`);
-  }
-
   const availableNames = await getAvailableModels();
   const availableModels = resolveAvailableModels(availableNames);
   const orderedModels = [
@@ -270,10 +288,7 @@ export async function callOllama(
   let lastError: Error | null = null;
 
   for (const model of orderedModels) {
-    const readiness = await ensureOllamaReady({
-      model,
-      waitForModel: !availableModels.includes(model),
-    });
+    const readiness = await waitUntilReady(model);
 
     if (!readiness.running) {
       lastError = new Error('AI engine is unavailable right now. The app will keep retrying.');

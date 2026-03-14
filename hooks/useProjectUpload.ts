@@ -52,12 +52,15 @@ export function useProjectUpload() {
           updateProcessingStep(3, 'active');
           setTimeout(() => {
             void runAiEnrichment(project, analysisId);
-          }, 2000);
+          }, 3000);
           return;
         }
 
         if (!response.ok || !data?.success || !data.enrichment) {
-          updateProcessingStep(3, 'done');
+          updateProcessingStep(3, 'active');
+          setTimeout(() => {
+            void runAiEnrichment(project, analysisId);
+          }, 4000);
           return;
         }
 
@@ -67,7 +70,10 @@ export function useProjectUpload() {
         });
         updateProcessingStep(3, 'done');
       } catch {
-        updateProcessingStep(3, 'done');
+        updateProcessingStep(3, 'active');
+        setTimeout(() => {
+          void runAiEnrichment(project, analysisId);
+        }, 4000);
       }
     },
     [setAiEnrichment, updateProcessingStep]
@@ -88,21 +94,6 @@ export function useProjectUpload() {
     schedule(1600, () => {
       updateProcessingStep(1, 'done');
       updateProcessingStep(2, 'active');
-    });
-
-    schedule(2800, () => {
-      updateProcessingStep(2, 'done');
-      updateProcessingStep(3, 'active');
-    });
-
-    schedule(4300, () => {
-      updateProcessingStep(3, 'done');
-      updateProcessingStep(4, 'active');
-    });
-
-    schedule(6000, () => {
-      updateProcessingStep(4, 'done');
-      updateProcessingStep(5, 'active');
     });
 
     return () => {
