@@ -1,9 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   serverExternalPackages: ['unzipper', '@babel/parser', '@babel/traverse'],
-  eslint: {
-    ignoreDuringBuilds: false,
-  },
+  outputFileTracingRoot: __dirname,
   typescript: {
     ignoreBuildErrors: false,
   },
