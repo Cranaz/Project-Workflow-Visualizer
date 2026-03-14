@@ -16,11 +16,7 @@ export default function HomePage() {
       return;
     }
     if (uploadState === 'success') {
-      // Delay slightly for the final progress animation
-      const timer = setTimeout(() => {
-        router.push('/analyze');
-      }, 600);
-      return () => clearTimeout(timer);
+      router.push('/analyze');
     }
   }, [uploadState, parsedProject, router]);
 

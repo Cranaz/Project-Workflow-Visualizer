@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useWorkflowStore, useFilteredNodes, useFilteredEdges } from '@/lib/store/workflowStore';
 import { computeLayout, computeClusterLayout } from '@/lib/graph/layoutEngine';
 
@@ -10,6 +10,7 @@ export function useWorkflowLayout() {
   const layoutDirection = useWorkflowStore((s) => s.layoutDirection);
   const isClusterMode = useWorkflowStore((s) => s.isClusterMode);
   const updateNodePositions = useWorkflowStore((s) => s.updateNodePositions);
+  const hasBootLayout = useRef(false);
 
   const applyLayout = useCallback(() => {
     if (nodes.length === 0) return;
@@ -29,6 +30,11 @@ export function useWorkflowLayout() {
 
   // Re-layout when direction or cluster mode changes
   useEffect(() => {
+    if (!nodes.length) return;
+    if (!hasBootLayout.current) {
+      hasBootLayout.current = true;
+      return;
+    }
     applyLayout();
   }, [layoutDirection, isClusterMode]); // eslint-disable-line react-hooks/exhaustive-deps
 

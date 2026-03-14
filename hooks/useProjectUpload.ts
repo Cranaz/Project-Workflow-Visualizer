@@ -114,14 +114,10 @@ export function useProjectUpload() {
           updateProcessingStep(4, 'active');
 
           setUploadState('building');
-          // Small delay for visual effect
-          await new Promise((r) => setTimeout(r, 300));
           updateProcessingStep(4, 'done');
           updateProcessingStep(5, 'active');
 
           setProject(result.data);
-
-          await new Promise((r) => setTimeout(r, 200));
           updateProcessingStep(5, 'done');
 
           void runAiEnrichment(result.data.project);
@@ -196,8 +192,6 @@ export function useProjectUpload() {
         updateProcessingStep(2, 'done');
         updateProcessingStep(4, 'active');
         setUploadState('building');
-
-        await new Promise((r) => setTimeout(r, 300));
         updateProcessingStep(4, 'done');
         updateProcessingStep(5, 'active');
 

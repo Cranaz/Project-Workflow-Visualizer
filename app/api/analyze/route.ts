@@ -133,7 +133,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Layout
     const positions = computeLayout(nodes, edges, {
-      direction: 'TB',
+      direction: 'LR',
       rankSep: 120,
       nodeSep: 80,
     });

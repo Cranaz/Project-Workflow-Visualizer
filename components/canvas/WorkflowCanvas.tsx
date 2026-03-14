@@ -49,7 +49,7 @@ const edgeTypes: EdgeTypes = {
 
 const fitViewOptions: FitViewOptions = {
   padding: 0.2,
-  duration: 800,
+  duration: 200,
 };
 
 export function WorkflowCanvas() {
