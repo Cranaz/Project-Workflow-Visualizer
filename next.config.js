@@ -13,6 +13,10 @@ const nextConfig = {
       path.resolve(__dirname, 'node_modules'),
       ...(config.resolve.modules || []),
     ];
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      'framer-motion': require.resolve('framer-motion'),
+    };
     return config;
   },
 };
