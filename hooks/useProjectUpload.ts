@@ -73,6 +73,43 @@ export function useProjectUpload() {
     [setAiEnrichment, updateProcessingStep]
   );
 
+  const startProgressSimulation = useCallback(() => {
+    const timers: Array<ReturnType<typeof setTimeout>> = [];
+    const schedule = (delay: number, fn: () => void) => {
+      timers.push(setTimeout(fn, delay));
+    };
+
+    // Move past "Extracting files" quickly so the UI doesn't appear stuck.
+    schedule(700, () => {
+      updateProcessingStep(0, 'done');
+      updateProcessingStep(1, 'active');
+    });
+
+    schedule(1600, () => {
+      updateProcessingStep(1, 'done');
+      updateProcessingStep(2, 'active');
+    });
+
+    schedule(2800, () => {
+      updateProcessingStep(2, 'done');
+      updateProcessingStep(3, 'active');
+    });
+
+    schedule(4300, () => {
+      updateProcessingStep(3, 'done');
+      updateProcessingStep(4, 'active');
+    });
+
+    schedule(6000, () => {
+      updateProcessingStep(4, 'done');
+      updateProcessingStep(5, 'active');
+    });
+
+    return () => {
+      timers.forEach((t) => clearTimeout(t));
+    };
+  }, [updateProcessingStep]);
+
   const uploadFile = useCallback(
     async (file: File): Promise<boolean> => {
       setError(null);
@@ -91,9 +128,11 @@ export function useProjectUpload() {
 
       let retries = 0;
       while (retries <= MAX_RETRIES) {
+        let stopSimulation: (() => void) | null = null;
         try {
           updateProcessingStep(0, 'active');
           setUploadState('uploading');
+          stopSimulation = startProgressSimulation();
 
           const response = await fetch('/api/analyze', {
             method: 'POST',
@@ -130,9 +169,11 @@ export function useProjectUpload() {
           updateProcessingStep(5, 'done');
 
           void runAiEnrichment(result.data.project, result.data.meta.analysisId);
+          stopSimulation?.();
 
           return true;
         } catch (err) {
+          stopSimulation?.();
           retries++;
           if (retries > MAX_RETRIES) {
             const msg = err instanceof Error ? err.message : 'Upload failed';
@@ -177,8 +218,10 @@ export function useProjectUpload() {
         formData.append('files[]', file);
       }
 
+      let stopSimulation: (() => void) | null = null;
       try {
         updateProcessingStep(0, 'active');
+        stopSimulation = startProgressSimulation();
 
         const response = await fetch('/api/analyze', {
           method: 'POST',
@@ -207,8 +250,10 @@ export function useProjectUpload() {
         setProject(result.data);
         updateProcessingStep(5, 'done');
         void runAiEnrichment(result.data.project, result.data.meta.analysisId);
+        stopSimulation?.();
         return true;
       } catch (err) {
+        stopSimulation?.();
         const msg = err instanceof Error ? err.message : 'Upload failed';
         setError(msg);
         setUploadError(msg);

@@ -22,10 +22,16 @@ export function UploadZone() {
   const uploadState = useWorkflowStore((s) => s.uploadState);
   const parsedProject = useWorkflowStore((s) => s.parsedProject);
   const processingSteps = useWorkflowStore((s) => s.processingSteps);
-  const [startTime, setStartTime] = useState<number>(0);
   const [elapsed, setElapsed] = useState<number>(0);
 
   const isProcessing = uploadState !== 'idle' && uploadState !== 'success' && uploadState !== 'error';
+  const progressPercent = useMemo(() => {
+    if (!isProcessing || processingSteps.length === 0) return 0;
+    const doneCount = processingSteps.filter((step) => step.status === 'done').length;
+    const hasActive = processingSteps.some((step) => step.status === 'active');
+    const progressScore = doneCount + (hasActive ? 0.5 : 0);
+    return Math.min(100, Math.round((progressScore / processingSteps.length) * 100));
+  }, [isProcessing, processingSteps]);
 
   const languageBreakdown = useMemo(() => {
     const counts = new Map<string, number>();
@@ -89,16 +95,11 @@ export function UploadZone() {
 
   const handleAnalyze = useCallback(async () => {
     if (selectedFiles.length === 0) return;
-    setStartTime(Date.now());
-    const timer = setInterval(() => {
-      setElapsed(Date.now() - Date.now() + (Date.now() - (startTime || Date.now())));
-    }, 100);
-
-    const elapsedTimer = setInterval(() => {
-      setElapsed((prev) => prev + 100);
-    }, 100);
-
+    const start = Date.now();
     setElapsed(0);
+    const timer = setInterval(() => {
+      setElapsed(Date.now() - start);
+    }, 100);
 
     try {
       if (selectedFiles.length === 1 && selectedFiles[0].name.endsWith('.zip')) {
@@ -108,9 +109,8 @@ export function UploadZone() {
       }
     } finally {
       clearInterval(timer);
-      clearInterval(elapsedTimer);
     }
-  }, [selectedFiles, uploadFile, uploadFiles, startTime]);
+  }, [selectedFiles, uploadFile, uploadFiles]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-base px-4">
@@ -206,7 +206,7 @@ export function UploadZone() {
                       Drop your project here
                     </p>
                     <p className="text-sm text-text-muted">
-                      ZIP file or project files · Max 50MB
+                      ZIP file or project files - Max 50MB
                     </p>
                     <p className="text-xs text-text-disabled mt-2">
                       Supports: .js .ts .jsx .tsx .py .go .java .rs .rb .php .cs .cpp
@@ -278,7 +278,7 @@ export function UploadZone() {
                 }}
                 icon={<ArrowRight size={16} />}
               >
-                Analyze Project →
+                Analyze Project ->
               </Button>
             </div>
           </>
@@ -325,7 +325,7 @@ export function UploadZone() {
               ))}
             </div>
             <p className="text-center text-xs text-text-muted">
-              Elapsed: {Math.round(elapsed)}ms
+              Elapsed: {Math.round(elapsed)}ms | Progress: {progressPercent}%
             </p>
           </motion.div>
         )}
