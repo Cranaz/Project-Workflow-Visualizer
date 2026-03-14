@@ -258,17 +258,6 @@ export function UploadZone() {
 
             {/* Buttons */}
             <div className="mt-6 flex gap-3 justify-center">
-              {parsedProject && (
-                <Button
-                  variant="secondary"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    window.location.href = '/analyze';
-                  }}
-                >
-                  Open Workflow
-                </Button>
-              )}
               <Button
                 variant="secondary"
                 onClick={(e) => {
