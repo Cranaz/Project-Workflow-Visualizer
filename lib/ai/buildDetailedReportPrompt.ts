@@ -1,4 +1,4 @@
-import type { ParsedProject } from '@/lib/types/project';
+﻿import type { ParsedProject } from '@/lib/types/project';
 import { detectEntryPoint } from '@/lib/utils/fileUtils';
 import { truncateContent } from '@/lib/utils/fileUtils';
 
@@ -39,7 +39,7 @@ function buildFileSection(files: FilePriority[]): string {
   let result = '';
   for (const fp of files) {
     if (fp.maxLines === 0) {
-      result += `\n--- FILE: ${fp.filePath} (skipped — style/test) ---\n`;
+      result += `\n--- FILE: ${fp.filePath} (skipped - style/test) ---\n`;
       continue;
     }
     const truncated = truncateContent(fp.content, fp.maxLines);
@@ -48,7 +48,7 @@ function buildFileSection(files: FilePriority[]): string {
   return result;
 }
 
-export function buildPrompt(project: ParsedProject): string {
+export function buildDetailedReportPrompt(project: ParsedProject): string {
   const filePriorities: FilePriority[] = project.files
     .map((f) => {
       const { priority, maxLines } = getPromptPriority(f.filePath, project);
@@ -62,7 +62,10 @@ export function buildPrompt(project: ParsedProject): string {
     .sort((a, b) => a.priority - b.priority)
     .slice(0, MAX_FILES_IN_PROMPT);
 
-  const preamble = `You are a senior software architect. Analyze the following project source code and return ONLY a valid JSON object. Do not write anything before or after the JSON. Do not use markdown code fences. Do not explain yourself. Return raw JSON.
+  const preamble = `You are a senior software architect. Write a VERY comprehensive, highly detailed architectural markdown report.
+Aim for roughly 10,000 words (8,000 to 12,000 is acceptable). Explain exactly what this program does and how it works end-to-end.
+Break down the entire architecture, design patterns, security mechanisms, API communication, data flow, deep component relationship analysis,
+and theoretical foundations. Use headings, bullet lists, and clear sections. Return markdown only. Do not return JSON.
 
 PROJECT INFO:
 - Name: ${project.projectName}
@@ -79,10 +82,7 @@ SOURCE FILES:`;
 
   let fileSection = buildFileSection(filePriorities);
 
-  // Trim if exceeding max chars
-  const schemaInstruction = getSchemaInstruction();
-  while (preamble.length + fileSection.length + schemaInstruction.length > MAX_PROMPT_CHARS && filePriorities.length > 5) {
-    // Reduce lines for lowest priority files
+  while (preamble.length + fileSection.length > MAX_PROMPT_CHARS && filePriorities.length > 5) {
     const lastFile = filePriorities[filePriorities.length - 1];
     if (lastFile.maxLines > 0) {
       lastFile.maxLines = Math.max(0, lastFile.maxLines - 10);
@@ -92,49 +92,5 @@ SOURCE FILES:`;
     fileSection = buildFileSection(filePriorities);
   }
 
-  return preamble + fileSection + '\n\n' + schemaInstruction;
-}
-
-function getSchemaInstruction(): string {
-  return `Return this exact JSON structure:
-{
-  "projectSummary": "string - 2-3 sentence extremely concise summary of what this project does",
-  "detailedReport": "string - A detailed but concise markdown overview (6-10 paragraphs). The full long-form report is generated separately.",
-  "workflowSteps": [
-    {
-      "step": 1,
-      "title": "string",
-      "description": "string",
-      "files": ["filePath1", "filePath2"],
-      "type": "entry | process | data | response"
-    }
-  ],
-  "fileDescriptions": {
-    "filePath": {
-      "purpose": "string - one sentence",
-      "responsibility": "string",
-      "dataIn": "string - what data this file receives",
-      "dataOut": "string - what data this file produces",
-      "subsystem": "string - which subsystem this belongs to"
-    }
-  },
-  "inferredEdges": [
-    {
-      "source": "filePath",
-      "target": "filePath",
-      "relationship": "string",
-      "dataFlowing": "string",
-      "edgeType": "dataflow | api_call | db_query | renders | triggers"
-    }
-  ],
-  "subsystems": [
-    {
-      "name": "string",
-      "color": "#hexcolor",
-      "files": ["filePath1"],
-      "description": "string"
-    }
-  ],
-  "warnings": ["string - any architectural concerns or issues detected"]
-}`;
+  return preamble + fileSection;
 }

@@ -65,11 +65,11 @@ export function DetailedReportModal({
                   <div className="bg-elevated/60 border border-border-subtle rounded-lg p-4 text-sm text-text-secondary">
                     <div className="flex items-center gap-2 text-text-muted mb-2">
                       <AlertTriangle size={16} />
-                      <span className="font-semibold">AI overview not available yet</span>
+                      <span className="font-semibold">Generating AI overview...</span>
                     </div>
                     <p className="text-[13px] text-text-secondary">
-                      The full 10K-word overview appears after the AI analysis finishes. If the AI engine
-                      is still starting or unavailable, re-run analysis once it is ready.
+                      The full 10K-word overview is generated in the background and will appear automatically
+                      as soon as it is ready.
                     </p>
                     {aiStatus && (
                       <p className="mt-2 text-[12px] text-text-muted">

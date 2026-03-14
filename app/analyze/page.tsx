@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ReactFlowProvider } from 'reactflow';
 import { TopBar } from '@/components/panels/TopBar';
@@ -26,9 +26,13 @@ interface HealthResponse {
 export default function AnalyzePage() {
   const router = useRouter();
   const parsedProject = useWorkflowStore((s) => s.parsedProject);
+  const aiEnrichment = useWorkflowStore((s) => s.aiEnrichment);
+  const aiStatus = useWorkflowStore((s) => s.aiStatus);
   const setAiStatus = useWorkflowStore((s) => s.setAiStatus);
   const setAiModel = useWorkflowStore((s) => s.setAiModel);
   const setAiDetail = useWorkflowStore((s) => s.setAiDetail);
+  const setAiEnrichment = useWorkflowStore((s) => s.setAiEnrichment);
+  const enrichInFlight = useRef(false);
 
   // Redirect to home if no project data
   useEffect(() => {
@@ -77,6 +81,59 @@ export default function AnalyzePage() {
       if (timeoutId) clearTimeout(timeoutId);
     };
   }, [setAiStatus, setAiModel, setAiDetail]);
+
+  // Auto-run AI enrichment when the engine becomes ready
+  useEffect(() => {
+    if (!parsedProject || aiEnrichment || aiStatus !== 'ready') return;
+
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const runEnrichment = async () => {
+      if (cancelled || enrichInFlight.current) return;
+      enrichInFlight.current = true;
+      try {
+        const response = await fetch('/api/enrich', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project: parsedProject }),
+        });
+
+        const data = (await response.json().catch(() => ({}))) as {
+          success?: boolean;
+          enrichment?: AnalyzeResponse['data']['aiEnrichment'];
+          model?: string;
+          aiTimeMs?: number;
+          error?: string;
+        };
+
+        if (response.ok && data?.success && data.enrichment) {
+          setAiEnrichment(data.enrichment, {
+            aiModel: data.model,
+            aiTimeMs: data.aiTimeMs,
+          });
+          setAiDetail(null);
+          return;
+        }
+
+        setAiDetail(data?.error ?? 'AI enrichment failed. Retrying automatically...');
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'AI enrichment failed. Retrying automatically...';
+        setAiDetail(message);
+      } finally {
+        enrichInFlight.current = false;
+        if (!cancelled) {
+          retryTimer = setTimeout(runEnrichment, 8000);
+        }
+      }
+    };
+
+    runEnrichment();
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [parsedProject, aiEnrichment, aiStatus, setAiEnrichment, setAiDetail]);
 
   if (!parsedProject) {
     return (
