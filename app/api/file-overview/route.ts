@@ -39,14 +39,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const targetWords = Math.min(1200, Math.max(300, Math.round(lineCount * 3)));
 
+    const normalizedImports = Array.isArray(body.imports)
+      ? body.imports
+          .filter((imp) => Boolean(imp?.source))
+          .map((imp) => ({
+            source: imp.source,
+            specifiers: Array.isArray(imp.specifiers) ? imp.specifiers : [],
+          }))
+      : [];
+
+    const normalizedExports = Array.isArray(body.exports)
+      ? body.exports.filter((exp) => Boolean(exp?.name))
+      : [];
+
     const prompt = buildFileOverviewPrompt({
       projectName: body.projectName ?? 'Unknown Project',
       framework: body.framework ?? 'Unknown',
       filePath: body.filePath,
       language: body.language ?? 'Unknown',
       lineCount,
-      imports: Array.isArray(body.imports) ? body.imports : [],
-      exports: Array.isArray(body.exports) ? body.exports : [],
+      imports: normalizedImports,
+      exports: normalizedExports,
       content: trimmed,
       targetWords,
       truncated,
