@@ -49,7 +49,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       : [];
 
     const normalizedExports = Array.isArray(body.exports)
-      ? body.exports.filter((exp) => Boolean(exp?.name))
+      ? body.exports
+          .filter((exp) => Boolean(exp?.name))
+          .map((exp) => ({
+            name: exp.name,
+            type: exp.type ?? 'unknown',
+          }))
       : [];
 
     const prompt = buildFileOverviewPrompt({
